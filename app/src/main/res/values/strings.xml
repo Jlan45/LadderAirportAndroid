@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">LadderAirport Agent</string>
+    <string name="notification_channel_name">Agent 运行服务</string>
+    <string name="notification_channel_desc">保持 LadderAirport 节点代理前台常驻运行</string>
+    <string name="status_stopped">已停止</string>
+    <string name="status_running">正在运行</string>
+    <string name="status_error">运行异常</string>
+    <string name="btn_start">启动 Agent</string>
+    <string name="btn_stop">停止 Agent</string>
+    <string name="btn_enroll">一键注册 (Enroll)</string>
+    <string name="panel_url_hint">Panel 地址 (如 http://192.168.1.100:8080)</string>
+    <string name="node_id_hint">节点 ID (如 node-android-1)</string>
+    <string name="token_hint">控制令牌 / 15分钟注册令牌</string>
+    <string name="auto_start_title">开机自启</string>
+    <string name="battery_opt_title">忽略电池优化</string>
+    <string name="logs_title">实时日志</string>
+    <string name="clear_logs">清除</string>
+    <string name="traffic_stat">上行: %1$s | 下行: %2$s</string>
+    <string name="connections_stat">连接数: %1$d | 运行时间: %2$s</string>
+</resources>

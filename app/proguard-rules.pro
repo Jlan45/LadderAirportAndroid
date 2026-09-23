@@ -1,0 +1,2 @@
+-keep class io.ladderairport.agent.mobile.** { *; }
+-keep class go.** { *; }
