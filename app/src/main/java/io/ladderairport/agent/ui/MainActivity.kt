@@ -1,6 +1,8 @@
 package io.ladderairport.agent.ui
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,11 +18,15 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.viewpager2.widget.ViewPager2
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import io.ladderairport.agent.LadderApplication
 import io.ladderairport.agent.R
 import io.ladderairport.agent.databinding.ActivityMainBinding
+import io.ladderairport.agent.databinding.PageConfigBinding
+import io.ladderairport.agent.databinding.PageDashboardBinding
+import io.ladderairport.agent.databinding.PageLogsBinding
 import io.ladderairport.agent.mobile.Mobile
 import io.ladderairport.agent.model.AgentStatus
 import io.ladderairport.agent.service.AgentService
@@ -33,6 +39,10 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private lateinit var dashboardBinding: PageDashboardBinding
+    private lateinit var configBinding: PageConfigBinding
+    private lateinit var logsBinding: PageLogsBinding
+
     private val prefs by lazy { LadderApplication.instance.prefs }
 
     private val requestNotificationPermissionLauncher = registerForActivityResult(
@@ -64,33 +74,85 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        initViews()
+        dashboardBinding = PageDashboardBinding.inflate(layoutInflater)
+        configBinding = PageConfigBinding.inflate(layoutInflater)
+        logsBinding = PageLogsBinding.inflate(layoutInflater)
+
+        setupNavigation()
+        initDashboard()
+        initConfig()
+        initLogs()
         observeData()
         checkPermissions()
     }
 
-    private fun initViews() {
-        // Load versions
+    private fun setupNavigation() {
+        val adapter = MainPagerAdapter(dashboardBinding, configBinding, logsBinding)
+        binding.viewPager.adapter = adapter
+        binding.viewPager.offscreenPageLimit = 2
+
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_dashboard -> binding.viewPager.currentItem = 0
+                R.id.nav_config -> binding.viewPager.currentItem = 1
+                R.id.nav_logs -> binding.viewPager.currentItem = 2
+            }
+            true
+        }
+
+        binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                when (position) {
+                    0 -> binding.bottomNav.selectedItemId = R.id.nav_dashboard
+                    1 -> binding.bottomNav.selectedItemId = R.id.nav_config
+                    2 -> binding.bottomNav.selectedItemId = R.id.nav_logs
+                }
+            }
+        })
+    }
+
+    private fun initDashboard() {
         try {
             val agentVer = Mobile.getVersion()
             val singboxVer = Mobile.getSingboxVersion()
-            binding.tvVersion.text = "Agent $agentVer (sing-box $singboxVer)"
+            dashboardBinding.tvCoreVersion.text = "sing-box $singboxVer"
+            binding.tvAppSubtitle.text = "Agent $agentVer"
         } catch (_: Exception) {
-            binding.tvVersion.text = "LadderAirport Android"
+            dashboardBinding.tvCoreVersion.text = "sing-box runtime"
         }
 
-        // Fill form fields
-        binding.etPanelUrl.setText(prefs.panelUrl)
-        binding.etNodeId.setText(prefs.nodeId)
-        binding.etToken.setText(prefs.token)
-        binding.switchAutoStart.isChecked = prefs.autoStart
+        updateDashboardConfigDisplay()
 
-        binding.switchAutoStart.setOnCheckedChangeListener { _, isChecked ->
+        dashboardBinding.btnPower.setOnClickListener {
+            val isRunning = AgentService.isServiceRunning.value == true
+            if (isRunning) {
+                AgentService.stop(this)
+            } else {
+                if (!validateInputs()) {
+                    binding.viewPager.currentItem = 1
+                    return@setOnClickListener
+                }
+                saveInputsToPrefs()
+                AgentService.start(this)
+            }
+        }
+
+        dashboardBinding.tvBatteryStatus.setOnClickListener {
+            requestBatteryOptimizationExemption()
+        }
+    }
+
+    private fun initConfig() {
+        configBinding.etPanelUrl.setText(prefs.panelUrl)
+        configBinding.etNodeId.setText(prefs.nodeId)
+        configBinding.etToken.setText(prefs.token)
+        configBinding.switchAutoStart.isChecked = prefs.autoStart
+
+        configBinding.switchAutoStart.setOnCheckedChangeListener { _, isChecked ->
             prefs.autoStart = isChecked
         }
 
-        // Scan QR button
-        binding.btnScanQr.setOnClickListener {
+        configBinding.btnScanQrCode.setOnClickListener {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED
             ) {
@@ -100,37 +162,47 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Save button
-        binding.btnSaveConfig.setOnClickListener {
+        configBinding.btnSaveConfig.setOnClickListener {
             saveInputsToPrefs()
+            updateDashboardConfigDisplay()
             Toast.makeText(this, "配置已保存", Toast.LENGTH_SHORT).show()
         }
 
-        // Enroll button
-        binding.btnEnroll.setOnClickListener {
+        configBinding.btnEnroll.setOnClickListener {
             performEnrollment(autoStartAfter = false)
         }
 
-        // Start/Stop toggle button
-        binding.btnToggleAgent.setOnClickListener {
-            val isRunning = AgentService.isServiceRunning.value == true
-            if (isRunning) {
-                AgentService.stop(this)
-            } else {
-                if (!validateInputs()) return@setOnClickListener
-                saveInputsToPrefs()
-                AgentService.start(this)
-            }
-        }
-
-        // Battery optimization
-        binding.btnBatteryOpt.setOnClickListener {
+        configBinding.layoutBatteryOpt.setOnClickListener {
             requestBatteryOptimizationExemption()
         }
+    }
 
-        // Clear logs
-        binding.btnClearLogs.setOnClickListener {
+    private fun initLogs() {
+        logsBinding.btnClearLogs.setOnClickListener {
             LadderApplication.clearLogs()
+        }
+
+        logsBinding.btnCopyLogs.setOnClickListener {
+            val lines = LadderApplication.logLines.value ?: emptyList()
+            if (lines.isEmpty()) {
+                Toast.makeText(this, "当前无日志", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(ClipData.newPlainText("LadderAirport Logs", lines.joinToString("\n")))
+            Toast.makeText(this, "日志已复制到剪贴板", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun updateDashboardConfigDisplay() {
+        val nodeId = prefs.nodeId
+        val panelUrl = prefs.panelUrl
+        if (nodeId.isNotBlank()) {
+            dashboardBinding.tvHeroNodeName.text = nodeId
+            dashboardBinding.tvHeroPanelUrl.text = panelUrl
+        } else {
+            dashboardBinding.tvHeroNodeName.text = "未配置节点"
+            dashboardBinding.tvHeroPanelUrl.text = "请切换至「配置」页面填入或扫码导入信息"
         }
     }
 
@@ -158,10 +230,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Fill inputs
-        binding.etPanelUrl.setText(info.panelUrl)
-        binding.etNodeId.setText(info.nodeId)
-        binding.etToken.setText(info.token)
+        configBinding.etPanelUrl.setText(info.panelUrl)
+        configBinding.etNodeId.setText(info.nodeId)
+        configBinding.etToken.setText(info.token)
         saveInputsToPrefs()
+        updateDashboardConfigDisplay()
 
         AlertDialog.Builder(this)
             .setTitle("扫码配对成功")
@@ -169,7 +242,9 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("注册并启动") { _, _ ->
                 performEnrollment(autoStartAfter = true)
             }
-            .setNegativeButton("仅保存配置", null)
+            .setNegativeButton("仅保存配置") { _, _ ->
+                binding.viewPager.currentItem = 0
+            }
             .show()
     }
 
@@ -183,94 +258,126 @@ class MainActivity : AppCompatActivity() {
         }
 
         LadderApplication.logLines.observe(this) { lines ->
-            binding.tvLogs.text = lines.joinToString("\n")
-            binding.scrollLogs.post {
-                binding.scrollLogs.fullScroll(View.FOCUS_DOWN)
+            logsBinding.tvTerminalOutput.text = if (lines.isEmpty()) {
+                "等待日志输出..."
+            } else {
+                lines.joinToString("\n")
+            }
+            logsBinding.tvLogCount.text = "${lines.size} lines"
+            logsBinding.scrollLogs.post {
+                logsBinding.scrollLogs.fullScroll(View.FOCUS_DOWN)
             }
         }
     }
 
     private fun updateRunningState(isRunning: Boolean) {
         if (isRunning) {
-            binding.viewStatusDot.setBackgroundColor(getColor(R.color.status_running))
-            binding.tvStatus.text = getString(R.string.status_running)
-            binding.btnToggleAgent.text = getString(R.string.btn_stop)
-            binding.btnToggleAgent.setBackgroundColor(getColor(R.color.status_error))
-            binding.etPanelUrl.isEnabled = false
-            binding.etNodeId.isEnabled = false
-            binding.etToken.isEnabled = false
-            binding.btnEnroll.isEnabled = false
-            binding.btnScanQr.isEnabled = false
+            // Dashboard Hero
+            dashboardBinding.pillStatus.setBackgroundColor(getColor(R.color.status_running_bg))
+            dashboardBinding.dotStatus.setBackgroundColor(getColor(R.color.status_running))
+            dashboardBinding.tvStatusText.text = "运行中"
+            dashboardBinding.tvStatusText.textColor(R.color.status_running)
+
+            dashboardBinding.btnPower.text = "停止 Agent 服务"
+            dashboardBinding.btnPower.backgroundTintList = getColorStateList(R.color.status_error)
+
+            // Top Bar
+            binding.topStatusBadge.setBackgroundColor(getColor(R.color.status_running_bg))
+            binding.topStatusDot.setBackgroundColor(getColor(R.color.status_running))
+            binding.topStatusText.text = "在线"
+            binding.topStatusText.textColor(R.color.status_running)
+
+            // Disable edits during run
+            configBinding.etPanelUrl.isEnabled = false
+            configBinding.etNodeId.isEnabled = false
+            configBinding.etToken.isEnabled = false
+            configBinding.btnEnroll.isEnabled = false
+            configBinding.cardQrPairing.visibility = View.GONE
         } else {
-            binding.viewStatusDot.setBackgroundColor(getColor(R.color.status_stopped))
-            binding.tvStatus.text = getString(R.string.status_stopped)
-            binding.btnToggleAgent.text = getString(R.string.btn_start)
-            binding.btnToggleAgent.setBackgroundColor(getColor(R.color.primary))
-            binding.etPanelUrl.isEnabled = true
-            binding.etNodeId.isEnabled = true
-            binding.etToken.isEnabled = true
-            binding.btnEnroll.isEnabled = true
-            binding.btnScanQr.isEnabled = true
+            // Dashboard Hero
+            dashboardBinding.pillStatus.setBackgroundColor(getColor(R.color.status_stopped_bg))
+            dashboardBinding.dotStatus.setBackgroundColor(getColor(R.color.status_stopped))
+            dashboardBinding.tvStatusText.text = "已停止"
+            dashboardBinding.tvStatusText.textColor(R.color.status_stopped)
+
+            dashboardBinding.btnPower.text = "启动 Agent"
+            dashboardBinding.btnPower.backgroundTintList = getColorStateList(R.color.primary)
+
+            // Top Bar
+            binding.topStatusBadge.setBackgroundColor(getColor(R.color.status_stopped_bg))
+            binding.topStatusDot.setBackgroundColor(getColor(R.color.status_stopped))
+            binding.topStatusText.text = "已停止"
+            binding.topStatusText.textColor(R.color.status_stopped)
+
+            // Enable edits
+            configBinding.etPanelUrl.isEnabled = true
+            configBinding.etNodeId.isEnabled = true
+            configBinding.etToken.isEnabled = true
+            configBinding.btnEnroll.isEnabled = true
+            configBinding.cardQrPairing.visibility = View.VISIBLE
         }
     }
 
     private fun updateStatusDetails(status: AgentStatus) {
-        binding.tvStatsTraffic.text = String.format(
-            getString(R.string.traffic_stat),
-            formatBytes(status.uplinkBytes),
-            formatBytes(status.downlinkBytes)
-        )
-
-        val uptimeFormatted = formatUptime(status.uptimeSecs)
-        binding.tvStatsConns.text = String.format(
-            getString(R.string.connections_stat),
-            status.connections,
-            uptimeFormatted
-        )
+        dashboardBinding.tvMetricUplink.text = formatBytes(status.uplinkBytes)
+        dashboardBinding.tvMetricDownlink.text = formatBytes(status.downlinkBytes)
+        dashboardBinding.tvMetricConns.text = status.connections.toString()
+        dashboardBinding.tvMetricUptime.text = formatUptime(status.uptimeSecs)
 
         if (status.lastError.isNotBlank() && !status.running) {
-            binding.tvLastError.visibility = View.VISIBLE
-            binding.tvLastError.text = "异常: ${status.lastError}"
-            binding.viewStatusDot.setBackgroundColor(getColor(R.color.status_error))
-            binding.tvStatus.text = getString(R.string.status_error)
+            dashboardBinding.tvHeroError.visibility = View.VISIBLE
+            dashboardBinding.tvHeroError.text = "异常: ${status.lastError}"
+            dashboardBinding.pillStatus.setBackgroundColor(getColor(R.color.status_error_bg))
+            dashboardBinding.dotStatus.setBackgroundColor(getColor(R.color.status_error))
+            dashboardBinding.tvStatusText.text = "运行异常"
+            dashboardBinding.tvStatusText.textColor(R.color.status_error)
+
+            binding.topStatusBadge.setBackgroundColor(getColor(R.color.status_error_bg))
+            binding.topStatusDot.setBackgroundColor(getColor(R.color.status_error))
+            binding.topStatusText.text = "异常"
+            binding.topStatusText.textColor(R.color.status_error)
         } else {
-            binding.tvLastError.visibility = View.GONE
+            dashboardBinding.tvHeroError.visibility = View.GONE
         }
     }
 
     private fun validateInputs(): Boolean {
-        val url = binding.etPanelUrl.text?.toString()?.trim() ?: ""
-        val nodeId = binding.etNodeId.text?.toString()?.trim() ?: ""
-        val token = binding.etToken.text?.toString()?.trim() ?: ""
+        val url = configBinding.etPanelUrl.text?.toString()?.trim() ?: ""
+        val nodeId = configBinding.etNodeId.text?.toString()?.trim() ?: ""
+        val token = configBinding.etToken.text?.toString()?.trim() ?: ""
 
         if (url.isBlank()) {
-            binding.etPanelUrl.error = "请输入 Panel 基础地址"
+            configBinding.etPanelUrl.error = "请输入 Panel 基础地址"
             return false
         }
         if (nodeId.isBlank()) {
-            binding.etNodeId.error = "请输入节点 ID"
+            configBinding.etNodeId.error = "请输入节点 ID"
             return false
         }
         if (token.isBlank()) {
-            binding.etToken.error = "请输入令牌"
+            configBinding.etToken.error = "请输入令牌"
             return false
         }
         return true
     }
 
     private fun saveInputsToPrefs() {
-        prefs.panelUrl = binding.etPanelUrl.text?.toString()?.trim() ?: ""
-        prefs.nodeId = binding.etNodeId.text?.toString()?.trim() ?: ""
-        prefs.token = binding.etToken.text?.toString()?.trim() ?: ""
+        prefs.panelUrl = configBinding.etPanelUrl.text?.toString()?.trim() ?: ""
+        prefs.nodeId = configBinding.etNodeId.text?.toString()?.trim() ?: ""
+        prefs.token = configBinding.etToken.text?.toString()?.trim() ?: ""
     }
 
     private fun performEnrollment(autoStartAfter: Boolean = false) {
-        if (!validateInputs()) return
+        if (!validateInputs()) {
+            binding.viewPager.currentItem = 1
+            return
+        }
         saveInputsToPrefs()
+        updateDashboardConfigDisplay()
 
         val progress = AlertDialog.Builder(this)
             .setTitle("正在注册节点")
-            .setMessage("正在生成密钥与证书请求并向 Panel 申请证书...")
+            .setMessage("正在生成密钥与证书请求 (含 SAN) 并向 Panel 申请管理证书...")
             .setCancelable(false)
             .create()
         progress.show()
@@ -293,24 +400,28 @@ class MainActivity : AppCompatActivity() {
                         val issuedToken = resObj.optString("token", "")
                         if (issuedToken.isNotBlank()) {
                             prefs.token = issuedToken
-                            binding.etToken.setText(issuedToken)
+                            configBinding.etToken.setText(issuedToken)
                         }
-                        LadderApplication.appendLog("节点一键注册成功，证书已就绪")
+                        LadderApplication.appendLog("节点注册成功：证书与私钥已保存在沙箱")
 
                         if (autoStartAfter) {
                             Toast.makeText(this@MainActivity, "注册成功，正在启动 Agent...", Toast.LENGTH_SHORT).show()
+                            binding.viewPager.currentItem = 0
                             AgentService.start(this@MainActivity)
                         } else {
                             AlertDialog.Builder(this@MainActivity)
                                 .setTitle("注册成功")
-                                .setMessage("管理证书已签发并保存在应用私有存储中，现在可以启动 Agent！")
-                                .setPositiveButton("好的", null)
+                                .setMessage("管理证书已签发并保存在应用私有沙箱中，现在可以启动 Agent！")
+                                .setPositiveButton("立即前往仪表盘") { _, _ ->
+                                    binding.viewPager.currentItem = 0
+                                }
+                                .setNegativeButton("关闭", null)
                                 .show()
                         }
                     } else {
                         val errMsg = resObj.optString("error", "未知注册失败")
                         AlertDialog.Builder(this@MainActivity)
-                            .setTitle("注册失败")
+                            .setTitle("注册失败 (HTTP 400/500)")
                             .setMessage(errMsg)
                             .setPositiveButton("确定", null)
                             .show()
@@ -345,7 +456,7 @@ class MainActivity : AppCompatActivity() {
                     startActivity(intent)
                 }
             } else {
-                Toast.makeText(this, "已获取忽略电池优化权限", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "已获取忽略电池优化白名单", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -382,5 +493,9 @@ class MainActivity : AppCompatActivity() {
         } else {
             "${secs}s"
         }
+    }
+
+    private fun android.widget.TextView.textColor(resId: Int) {
+        setTextColor(getColor(resId))
     }
 }

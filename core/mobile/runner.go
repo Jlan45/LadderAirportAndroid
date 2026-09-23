@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/ladderairport/agent/internal/control"
-	agentv1 "github.com/ladderairport/proto/gen/go/agent/v1"
 	"github.com/ladderairport/agent/internal/managementpki"
 	"github.com/ladderairport/agent/internal/panelhttp"
 	"github.com/ladderairport/agent/internal/protocolcert"
@@ -174,35 +173,6 @@ func (r *Runner) Start() error {
 	protocolCerts, err := protocolcert.New(filepath.Join(r.cfg.DataDir, "protocol-certs"))
 	if err == nil {
 		srv.SetProtocolCertificateManager(protocolCerts)
-	}
-
-	// Wire host indicators.
-	if r.host != nil {
-		srv.SetNodeMetricsProvider(func(ctx context.Context) (*agentv1.GetNodeMetricsResponse, error) {
-			raw := r.host.NodeMetricsJSON()
-			if strings.TrimSpace(raw) == "" {
-				return nil, nil
-			}
-			var m agentv1.GetNodeMetricsResponse
-			if err := json.Unmarshal([]byte(raw), &m); err != nil {
-				return nil, err
-			}
-			if m.CollectedAtUnix == 0 {
-				m.CollectedAtUnix = time.Now().Unix()
-			}
-			return &m, nil
-		})
-		srv.SetInterfacesProvider(func() ([]*agentv1.NetworkInterface, error) {
-			raw := r.host.InterfacesJSON()
-			if strings.TrimSpace(raw) == "" {
-				return nil, nil
-			}
-			var ifaces []*agentv1.NetworkInterface
-			if err := json.Unmarshal([]byte(raw), &ifaces); err != nil {
-				return nil, err
-			}
-			return ifaces, nil
-		})
 	}
 
 	panelHTTP := panelhttp.NewClient()

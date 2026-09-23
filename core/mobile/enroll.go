@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -133,9 +134,11 @@ func doEnroll(cfg EnrollConfig) (EnrollResult, error) {
 		}
 	}
 
-	// 2. Generate CSR with CommonName = NodeID.
+	// 2. Generate CSR with CommonName = NodeID and SANs.
 	req := &x509.CertificateRequest{
-		Subject: pkix.Name{CommonName: cfg.NodeID},
+		Subject:     pkix.Name{CommonName: cfg.NodeID},
+		DNSNames:    []string{cfg.NodeID, "localhost"},
+		IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
 	}
 	csrDER, err := x509.CreateCertificateRequest(rand.Reader, req, privKey)
 	if err != nil {

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/terminal_bg"
+    android:orientation="vertical">
+
+    <!-- Terminal Action Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/terminal_header"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="10dp">
+
+        <View
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="@color/status_running" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:fontFamily="monospace"
+            android:text="CONSOLE LOGS"
+            android:textColor="@color/terminal_accent"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvLogCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/ic_stat_agent"
+            android:fontFamily="monospace"
+            android:text="0 lines"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCopyLogs"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            app:icon="@drawable/ic_copy"
+            app:iconTint="@color/terminal_text" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnClearLogs"
+            style="@style/Widget.Material3.Button.IconButton"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            app:icon="@drawable/ic_delete"
+            app:iconTint="@color/terminal_text" />
+
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#334155" />
+
+    <!-- Terminal Text Area -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollLogs"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tvTerminalOutput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="3dp"
+            android:text="等待日志输出..."
+            android:textColor="@color/terminal_text"
+            android:textSize="12sp" />
+
+    </androidx.core.widget.NestedScrollView>
+
+</LinearLayout>
