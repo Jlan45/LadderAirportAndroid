@@ -1,77 +1,46 @@
 # LadderAirport Android
 
-LadderAirport 节点 Agent Android 客户端。
+Android 上的 LadderAirport 节点。手机、平板或电视盒子主动连到 Panel，作为 uplink 节点加入机群。不需要公网 IP，也不监听入站端口。
 
-根据 [/home/jlan/android-agent.md](/home/jlan/android-agent.md) 设计规范，本项目将 LadderAirport Agent 运行在普通 Android 设备（手机 / 平板 / 电视盒子）上，使闲置设备作为受 Panel 管控的代理节点接入机群。
+需要 Panel **v0.15.7** 或更新版本。注册走 `POST /api/v1/agent/enroll`，只交换长期控制令牌，不申请管理面证书。
 
----
+## 运行方式
 
-## 核心架构与设计
+- 控制面是 Agent 主动建立的 WebSocket 长连接，能力与 Panel 拨号 gRPC 对齐。连接断开时回退到 HTTP 上报和拉配置。
+- 数据面在进程里跑 sing-box，并通过 FRP 把入站流量从公网 FRPS 转到这台设备。
+- 前台服务保持进程，支持开机自启。
+- 安装包只包含 `arm64-v8a`。32 位 ARM 和 x86 模拟器不能安装这份包。
 
-- **控制通道**：仅走 **uplink-ws**（WebSocket 实时控制长连接），设备主动向 Panel 建立出站 WebSocket 连接，对齐 push/gRPC 全部管控功能，无需公网 IP 与监听端口。
-- **数据通道**：内嵌 **sing-box**（`box.Box`）+ **FRPC 反向隧道**（`frpcbridge`），将入站流量经远端公网 FRPS 穿透回本地 Android 节点。
-- **生命周期**：Android 前台 Service（`FOREGROUND_SERVICE` + `specialUse`）常驻运行，结合 `START_STICKY` 与 `WakeLock` 保持长连接；支持网络切网重连与开机自启动。
-- **管理 PKI**：本地生成 ECDSA P-256 私钥，向 Panel CA 签发 SPIFFE 身份证书（`spiffe://ladderairport/agent/<node-id>`），私钥保存在应用私有沙箱中。
-- **系统指标与网卡**：由 Android Kotlin 宿主环境通过 `Host` 回调注入系统指标（CPU/内存/磁盘/网络速率）和网卡列表。
+在 Panel 里把节点建成 **uplink**。添加成功后点「扫码配对」，用本应用的相机扫描二维码，填入 Panel 地址、节点 ID 和控制令牌，再点「一键注册」。
 
----
+## 本地构建
 
-## 构建方式
+需要 Android SDK（compileSdk 35）、JDK 17，以及仓库里已经提交的 `app/libs/ladderagent.aar`。
 
-### 前置条件
-- Android Studio 与 Android SDK（API 24+，build-tools 35+ / 36+）
-- Android NDK（r27 或 r28）
-- Go 1.26+ 与 `gomobile` (`github.com/sagernet/gomobile`)
-- Java 17+ / 21
-
-### 一键构建
 ```bash
-# 构建 AAR 动态库并编译生成 APK
-make all
-```
-
-或者分步构建：
-```bash
-# 1. 编译 Go Agent AAR
-make aar
-
-# 2. 编译 Debug APK
 make assemble
-# 产物位置：app/build/outputs/apk/debug/app-debug.apk
+# app/build/outputs/apk/debug/app-debug.apk
 
-# 3. 编译 Release APK
 make release
-# 产物位置：app/build/outputs/apk/release/app-release-unsigned.apk
+# app/build/outputs/apk/release/app-release-unsigned.apk
 ```
 
----
+`make test` 跑单元测试。CI 做同样的两件事：测试，再编 arm64 debug APK。
 
-## 项目结构
+## 重新编译 Go 核心
+
+`app/libs/ladderagent.aar` 是 gomobile 打出来的 arm64 库，提交在仓库里，日常编 APK 不用重打。要更新 Agent 核心时：
+
+```bash
+make aar
+```
+
+这一步需要 Go 1.26+、`gomobile`（`github.com/sagernet/gomobile`）和 Android NDK r28。`core/go.mod` 里的 `replace` 指向本机的 [LadderAirport](https://github.com/Jlan45/LadderAirport) 检出目录，路径不对时 `make aar` 会失败。
+
+## 目录
 
 ```text
-LadderAirportAndroid/
-├── Makefile                          # 一键自动化构建脚本
-├── settings.gradle                   # Gradle 多模块与依赖仓库设置
-├── build.gradle                      # 项目级 Gradle 配置
-├── app/
-│   ├── build.gradle                  # App 模块配置与依赖
-│   ├── libs/
-│   │   └── ladderagent.aar           # gomobile 生成的 Go 核心动态库
-│   └── src/main/
-│       ├── AndroidManifest.xml       # 权限与 Service/Receiver 声明
-│       ├── java/io/ladderairport/agent/
-│       │   ├── LadderApplication.kt  # 全局初始化与通知渠道
-│       │   ├── service/
-│       │   │   └── AgentService.kt   # 前台常驻 Service 与 Host 回调实现
-│       │   ├── receiver/
-│       │   │   └── BootReceiver.kt   # 开机自启广播接收器
-│       │   ├── util/
-│       │   │   ├── DeviceMetricsHelper.kt   # 系统 CPU/RAM/磁盘/网络采集
-│       │   │   ├── NetworkInterfaceHelper.kt# 网卡信息枚举
-│       │   │   └── PreferencesHelper.kt     # 配置持久化
-│       │   ├── model/
-│       │   │   └── AgentStatus.kt    # 节点状态数据模型
-│       │   └── ui/
-│       │       └── MainActivity.kt   # 交互主界面（配置/一键注册/启停/日志）
-│       └── res/                      # 布局、配色、图标资源
+app/                  Kotlin 界面、前台服务、已提交的 ladderagent.aar
+core/mobile/          gomobile 绑定：注册、uplink HTTP、WebSocket
+core/platform/        Android 上的 CPU、内存等宿主回调
 ```

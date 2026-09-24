@@ -13,7 +13,7 @@ all: aar assemble
 aar:
 	@echo "==> Building ladderagent.aar from core/mobile..."
 	mkdir -p app/libs
-	cd core && GOWORK=off $(GOMOBILE) bind -target=android -androidapi $(ANDROID_API) \
+	cd core && GOWORK=off $(GOMOBILE) bind -target=android/arm64 -androidapi $(ANDROID_API) \
 		-javapkg=$(ANDROID_PKG) -tags "with_quic,with_utls" \
 		-ldflags="-checklinkname=0 -s -w" \
 		-o ../app/libs/ladderagent.aar ./mobile

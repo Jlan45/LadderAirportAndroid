@@ -1,5 +1,6 @@
 *.iml
 .gradle
+.kotlin/
 /local.properties
 /.idea/
 .DS_Store
@@ -7,4 +8,18 @@
 /captures
 .externalNativeBuild
 .cxx
+
+# App outputs. The vendored Go library in app/libs/*.aar is committed on purpose.
 /app/build
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Signing material and local secrets
+*.jks
+*.keystore
+*.hprof
+*.log
+.env
+.env.*

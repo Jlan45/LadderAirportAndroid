@@ -377,7 +377,7 @@ class MainActivity : AppCompatActivity() {
 
         val progress = AlertDialog.Builder(this)
             .setTitle("正在注册节点")
-            .setMessage("正在生成密钥与证书请求 (含 SAN) 并向 Panel 申请管理证书...")
+            .setMessage("正在向 Panel 交换控制令牌，不申请管理面证书...")
             .setCancelable(false)
             .create()
         progress.show()
@@ -402,7 +402,7 @@ class MainActivity : AppCompatActivity() {
                             prefs.token = issuedToken
                             configBinding.etToken.setText(issuedToken)
                         }
-                        LadderApplication.appendLog("节点注册成功：证书与私钥已保存在沙箱")
+                        LadderApplication.appendLog("节点注册成功：已取得控制令牌，未初始化管理面 TLS")
 
                         if (autoStartAfter) {
                             Toast.makeText(this@MainActivity, "注册成功，正在启动 Agent...", Toast.LENGTH_SHORT).show()
@@ -411,7 +411,7 @@ class MainActivity : AppCompatActivity() {
                         } else {
                             AlertDialog.Builder(this@MainActivity)
                                 .setTitle("注册成功")
-                                .setMessage("管理证书已签发并保存在应用私有沙箱中，现在可以启动 Agent！")
+                                .setMessage("控制令牌已保存。该节点通过 HTTP 上报和 WebSocket 收配置，不使用管理面证书。现在可以启动 Agent。")
                                 .setPositiveButton("立即前往仪表盘") { _, _ ->
                                     binding.viewPager.currentItem = 0
                                 }

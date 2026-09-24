@@ -92,15 +92,6 @@ func NewRunner(cfgJSON string, host Host) (*Runner, error) {
 	if strings.TrimSpace(cfg.DataDir) == "" {
 		return nil, fmt.Errorf("缺少必须的 data_dir 参数")
 	}
-	if cfg.TLSCert == "" {
-		cfg.TLSCert = filepath.Join(cfg.DataDir, "agent.crt")
-	}
-	if cfg.TLSKey == "" {
-		cfg.TLSKey = filepath.Join(cfg.DataDir, "agent.key")
-	}
-	if cfg.TLSCA == "" {
-		cfg.TLSCA = filepath.Join(cfg.DataDir, "ca.crt")
-	}
 	if cfg.ReportSecs <= 0 {
 		cfg.ReportSecs = 15
 	}
@@ -120,7 +111,8 @@ func New(cfgJSON string, host Host) (*Runner, error) {
 	return NewRunner(cfgJSON, host)
 }
 
-// Start boots control.Server, management PKI, uplink HTTP and uplink WebSocket.
+// Start boots control.Server, uplink HTTP and uplink WebSocket.
+// Android nodes do not initialize management TLS.
 func (r *Runner) Start() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -136,27 +128,6 @@ func (r *Runner) Start() error {
 	}
 	if err := os.MkdirAll(r.cfg.DataDir, 0o755); err != nil {
 		return fmt.Errorf("创建数据目录失败：%w", err)
-	}
-
-	// Auto-enroll if certificates are missing and token is available.
-	if !fileExists(r.cfg.TLSCert) || !fileExists(r.cfg.TLSKey) || !fileExists(r.cfg.TLSCA) {
-		enrollCfg := EnrollConfig{
-			PanelURL:    r.cfg.PanelURL,
-			NodeID:      r.cfg.NodeID,
-			EnrollToken: r.cfg.Token,
-			DataDir:     r.cfg.DataDir,
-			TLSCert:     r.cfg.TLSCert,
-			TLSKey:      r.cfg.TLSKey,
-			TLSCA:       r.cfg.TLSCA,
-		}
-		res, err := doEnroll(enrollCfg)
-		if err != nil {
-			r.lastError = fmt.Sprintf("证书不存在且自动注册失败：%v", err)
-			return fmt.Errorf("%s", r.lastError)
-		}
-		if res.Token != "" {
-			r.cfg.Token = res.Token
-		}
 	}
 
 	rt := control.NewBoxRuntime(r.cfg.DataDir)
@@ -176,21 +147,6 @@ func (r *Runner) Start() error {
 	}
 
 	panelHTTP := panelhttp.NewClient()
-	certManager, err := managementpki.New(managementpki.Config{
-		PanelURL:   r.cfg.PanelURL,
-		NodeID:     r.cfg.NodeID,
-		Token:      r.cfg.Token,
-		CertPath:   r.cfg.TLSCert,
-		KeyPath:    r.cfg.TLSKey,
-		CAPath:     r.cfg.TLSCA,
-		Address:    "127.0.0.1",
-		GRPCPort:   0,
-		HTTPClient: panelHTTP,
-	})
-	if err != nil {
-		r.lastError = fmt.Sprintf("加载管理面 TLS 失败：%v", err)
-		return fmt.Errorf("%s", r.lastError)
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel
@@ -199,8 +155,6 @@ func (r *Runner) Start() error {
 	r.startedAt = time.Now().Unix()
 	r.running = true
 	r.lastError = ""
-
-	go certManager.Run(ctx)
 
 	uplinkClient, err := uplink.New(uplink.Config{
 		PanelURL:    r.cfg.PanelURL,

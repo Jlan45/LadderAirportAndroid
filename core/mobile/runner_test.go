@@ -80,9 +80,8 @@ func TestRunnerHostLogging(t *testing.T) {
 func TestEnrollmentFlow(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Mock Panel CA endpoint
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/pki/agent-certificates" {
+		if r.URL.Path != "/api/v1/agent/enroll" {
 			http.NotFound(w, r)
 			return
 		}
@@ -90,11 +89,8 @@ func TestEnrollmentFlow(t *testing.T) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"serial":        "12345",
-			"cert_pem":      "-----BEGIN CERTIFICATE-----\nMIIB...fake...\n-----END CERTIFICATE-----",
-			"ca_bundle_pem": "-----BEGIN CERTIFICATE-----\nMIIB...ca...\n-----END CERTIFICATE-----",
 			"control_token": "issued-control-token",
 		})
 	}))
@@ -123,13 +119,7 @@ func TestEnrollmentFlow(t *testing.T) {
 	if res.Token != "issued-control-token" {
 		t.Errorf("expected token=issued-control-token, got %s", res.Token)
 	}
-	if !fileExists(filepath.Join(tmpDir, "agent.key")) {
-		t.Errorf("expected agent.key to be created")
-	}
-	if !fileExists(filepath.Join(tmpDir, "agent.crt")) {
-		t.Errorf("expected agent.crt to be created")
-	}
-	if !fileExists(filepath.Join(tmpDir, "ca.crt")) {
-		t.Errorf("expected ca.crt to be created")
+	if fileExists(filepath.Join(tmpDir, "agent.key")) || fileExists(filepath.Join(tmpDir, "agent.crt")) || fileExists(filepath.Join(tmpDir, "ca.crt")) {
+		t.Errorf("uplink enrollment must not write management TLS files")
 	}
 }
