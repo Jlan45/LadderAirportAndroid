@@ -13,9 +13,13 @@ concurrency:
   group: android-ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ANDROID_TAGS: with_quic,with_utls
+  GOWORK: "off"
+
 jobs:
-  test:
-    name: Go mobile tests
+  build:
+    name: Build arm64 AAR and debug APK
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Android
@@ -30,16 +34,55 @@ jobs:
           path: LadderAirport
           submodules: recursive
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version-file: android/core/go.mod
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "ndk;28.0.13004108"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/28.0.13004108" >> "$GITHUB_ENV"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install gomobile
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.8
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.8
+          gomobile init
+
       - name: Point module replaces at the checkout
         working-directory: android
-        run: |
-          sed -i "s|/home/jlan/LadderAirport|${GITHUB_WORKSPACE}/LadderAirport|g" core/go.mod
+        run: sed -i "s|/home/jlan/LadderAirport|${GITHUB_WORKSPACE}/LadderAirport|g" core/go.mod
 
-      - name: Test mobile package
-        working-directory: android/core
-        run: GOWORK=off go test ./mobile/ -count=1
+      - name: Build AAR
+        working-directory: android
+        run: make aar
+
+      - name: Unit tests
+        working-directory: android
+        run: ./gradlew test --stacktrace
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ladderairport-android-arm64-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

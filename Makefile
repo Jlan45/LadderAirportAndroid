@@ -6,6 +6,9 @@ export ANDROID_NDK_HOME := $(if $(ANDROID_NDK_HOME),$(ANDROID_NDK_HOME),$(shell 
 
 ANDROID_API ?= 24
 ANDROID_PKG ?= io.ladderairport.agent
+# 与服务器 Agent 同一套协议标签。不带 with_gvisor / with_clash_api / with_wireguard：
+# 这是 FRP 节点，不是本机 VPN，那些标签会把 libgojni 撑大。
+ANDROID_TAGS ?= with_quic,with_utls
 GOMOBILE ?= $(shell which gomobile 2>/dev/null || echo $(HOME)/go/bin/gomobile)
 
 all: aar assemble
@@ -14,7 +17,7 @@ aar:
 	@echo "==> Building ladderagent.aar from core/mobile..."
 	mkdir -p app/libs
 	cd core && GOWORK=off $(GOMOBILE) bind -target=android/arm64 -androidapi $(ANDROID_API) \
-		-javapkg=$(ANDROID_PKG) -tags "with_quic,with_utls" \
+		-javapkg=$(ANDROID_PKG) -tags "$(ANDROID_TAGS)" \
 		-ldflags="-checklinkname=0 -s -w" \
 		-o ../app/libs/ladderagent.aar ./mobile
 	@echo "==> ladderagent.aar updated."

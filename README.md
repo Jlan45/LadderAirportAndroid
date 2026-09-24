@@ -26,12 +26,11 @@ make release
 # app/build/outputs/apk/release/app-release-unsigned.apk
 ```
 
-`make test` 跑 Android 单元测试。CI 只跑 `core/mobile` 的 Go 测试，不上传 AAR，也不编 APK。
+`make test` 跑 Android 单元测试。CI 会检出 [LadderAirport](https://github.com/Jlan45/LadderAirport) 主仓库，用 `with_quic,with_utls` 编 arm64 AAR，再编 debug APK 并上传产物。不把 AAR 提交回仓库。
 
 ## 目录
 
 ```text
 app/                  Kotlin 界面与前台服务
 core/mobile/          gomobile 绑定：注册、uplink HTTP、WebSocket
-core/platform/        Android 上的 CPU、内存等宿主回调
 ```
