@@ -9,7 +9,10 @@
 .externalNativeBuild
 .cxx
 
-# App outputs. The vendored Go library in app/libs/*.aar is committed on purpose.
+# gomobile 产物，本地 make aar 生成，不入库
+/app/libs/*.aar
+/app/libs/*.jar
+
 /app/build
 *.apk
 *.aab

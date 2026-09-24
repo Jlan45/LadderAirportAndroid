@@ -15,7 +15,7 @@ Android 上的 LadderAirport 节点。手机、平板或电视盒子主动连到
 
 ## 本地构建
 
-需要 Android SDK（compileSdk 35）、JDK 17，以及仓库里已经提交的 `app/libs/ladderagent.aar`。
+需要 Android SDK（compileSdk 35）和 JDK 17。Go 核心不在仓库里，先在本机打出 AAR：
 
 ```bash
 make assemble
@@ -29,7 +29,7 @@ make release
 
 ## 重新编译 Go 核心
 
-`app/libs/ladderagent.aar` 是 gomobile 打出来的 arm64 库，提交在仓库里，日常编 APK 不用重打。要更新 Agent 核心时：
+`app/libs/ladderagent.aar` 由 gomobile 生成，已加入 `.gitignore`。更新 Agent 核心：
 
 ```bash
 make aar
@@ -40,7 +40,7 @@ make aar
 ## 目录
 
 ```text
-app/                  Kotlin 界面、前台服务、已提交的 ladderagent.aar
+app/                  Kotlin 界面与前台服务
 core/mobile/          gomobile 绑定：注册、uplink HTTP、WebSocket
 core/platform/        Android 上的 CPU、内存等宿主回调
 ```

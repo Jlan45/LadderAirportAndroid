@@ -14,38 +14,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Unit tests and arm64 debug APK
+  test:
+    name: Go mobile tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Android
         uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: "17"
+          path: android
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses >/dev/null || true
-
-      - name: Unit tests
-        run: ./gradlew test --stacktrace
-
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+      - name: Checkout LadderAirport
+        uses: actions/checkout@v4
         with:
-          name: ladderairport-android-arm64-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
+          repository: Jlan45/LadderAirport
+          path: LadderAirport
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: android/core/go.mod
+
+      - name: Point module replaces at the checkout
+        working-directory: android
+        run: |
+          sed -i "s|/home/jlan/LadderAirport|${GITHUB_WORKSPACE}/LadderAirport|g" core/go.mod
+
+      - name: Test mobile package
+        working-directory: android/core
+        run: GOWORK=off go test ./mobile/ -count=1
