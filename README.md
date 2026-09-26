@@ -15,7 +15,7 @@ Android 上的 LadderAirport 节点。手机、平板或电视盒子主动连到
 
 ## 本地构建
 
-`app/libs/ladderagent.aar` 由本机 `make aar` 生成，不提交。打 APK 前需要 Android SDK（compileSdk 35）、JDK 17、Go 1.26+、`gomobile` 和 Android NDK r28。`core/go.mod` 的 `replace` 指向本机的 [LadderAirport](https://github.com/Jlan45/LadderAirport) 检出，路径不对时 `make aar` 会失败。
+`app/libs/ladderagent.aar` 由本机 `make aar` 生成，不提交。打 APK 前需要 Android SDK（compileSdk 35）、JDK 17、Go 1.26+、`gomobile` 和 Android NDK r28。`core/go.mod` 的 `replace` 指向本机的 [LadderAirport](https://github.com/LadderAirport/LadderAirport) 检出，路径不对时 `make aar` 会失败。
 
 ```bash
 make aar
@@ -26,7 +26,7 @@ make release
 # app/build/outputs/apk/release/app-release-unsigned.apk
 ```
 
-`make test` 跑 Android 单元测试。CI 会检出 [LadderAirport](https://github.com/Jlan45/LadderAirport) 主仓库，用 `with_quic,with_utls` 编 arm64 AAR，再编 debug APK 并上传产物。不把 AAR 提交回仓库。
+`make test` 跑 Android 单元测试。CI 会检出 [LadderAirport](https://github.com/LadderAirport/LadderAirport) 主仓库，用 `with_quic,with_utls` 编 arm64 AAR，再编 debug APK 并上传产物。不把 AAR 提交回仓库。
 
 ## 目录
 

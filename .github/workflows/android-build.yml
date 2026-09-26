@@ -30,7 +30,7 @@ jobs:
       - name: Checkout LadderAirport
         uses: actions/checkout@v4
         with:
-          repository: Jlan45/LadderAirport
+          repository: LadderAirport/LadderAirport
           path: LadderAirport
           submodules: recursive
 
